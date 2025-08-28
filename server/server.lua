@@ -87,31 +87,44 @@ lib.callback.register('3g-poll:canInteract', function()
     return VM:hasActive()
 end)
 
-lib.callback.register('3g-poll:validatePush', function(_, payload)
-    if type(payload) ~= 'table' or not payload.kind then return false end
+---@param src number
+---@param payload table
+---@return boolean
+lib.callback.register('3g-poll:validatePush', function(src, payload)
+    if type(payload) ~= 'table' or payload.kind == nil then return false end
+
     if payload.kind == 'state' then
         local v = payload.vote
-        if not v or not v.id or not v.endsAt then return false end
+        if type(v) ~= 'table' or not v.id or not v.endsAt then return false end
         local sv = VM.active[v.id]
-        return sv and sv.endsAt == v.endsAt
+        return (sv ~= nil) and (sv.endsAt == v.endsAt)
+
     elseif payload.kind == 'ended' then
         local v = payload.vote
-        if not v or not v.id or not v.endsAt then return false end
+        if type(v) ~= 'table' or not v.id or not v.endsAt then return false end
         local sv = VM.active[v.id]
-        return not sv and (v.endsAt <= os.time())
+        return (sv == nil) and (v.endsAt <= os.time())
+
     elseif payload.kind == 'announce' then
-        return true
+        local hasTs = (type(payload.ts) == 'number')
+        return VM:hasActive() or (hasTs and (os.time() - payload.ts <= 10))
+
     elseif payload.kind == 'visibility' then
-        return payload.on == true or payload.on == false
+        return type(payload.on) == 'boolean'
+
     elseif payload.kind == 'openCreate' then
-        return isAdmin(source) and not VM:hasActive()
+        return isAdmin(src) and not VM:hasActive()
+
     elseif payload.kind == 'interact' then
         return VM:hasActive()
+
     elseif payload.kind == 'toggle' then
         return true
     end
+
     return false
 end)
+
 
 -- commands
 local function trim(s) return (s:gsub('^%s+', ''):gsub('%s+$', '')) end
